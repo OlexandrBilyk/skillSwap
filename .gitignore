@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.so
+*.egg-info/
+dist/
+build/
+
+# Віртуальне середовище (venv, env)
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Пакети pip
+pip-wheel-metadata/
+*.egg
+
+# Alembic
+alembic/versions/*.pyc
+alembic/versions/*.pyo
+
+# SQLite бази (якщо використовуєш)
+*.sqlite3
+*.db
+
+# IDE та редактори
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Логи
+*.log
+
+# Файли конфігурацій середовища
+.env
+
+# Pytest
+.cache/
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+alembic.ini
