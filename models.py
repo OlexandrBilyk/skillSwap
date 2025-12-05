@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, Field
+from pydantic import BaseModel, field_validator, Field, EmailStr
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -52,9 +52,31 @@ class SkillResponse(SkillBase):
 
 
 class SkillUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=3, max_length=100)
+    title: Optional[str] = Field(..., min_length=3, max_length=100)
     description: Optional[str] = Field(None, min_length=10, max_length=500)
     category: Optional[SkillCategory] = None
     level: Optional[SkillLevel] = None
     can_teach: Optional[bool] = None
     want_learn: Optional[bool] = None
+
+
+class UserBase(BaseModel):
+    username: str = Field(max_length=50, unique=True)
+    email: EmailStr = Field(..., max_length=100)
+    full_name: str = Field(max_length=100)
+
+class UserCreate(UserBase):
+    is_active: bool = Field(default=True)
+    password: str 
+
+class UserResponse(UserBase):
+    id: Optional[int] = Field(..., ge=1)
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class UserLogin(BaseModel):
+    username: str
+    password: str

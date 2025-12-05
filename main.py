@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Depends, status, Query, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.requests import Request
-from models import SkillCreate, SkillResponse, SkillLevel, SkillCategory, SkillUpdate
+from models import SkillCreate, SkillResponse, SkillLevel, SkillCategory, SkillUpdate, UserCreate, UserResponse, UserLogin
 from sqlalchemy.orm import Session
 from db import get_db, Skill, User
 from typing import List
+from tokens import create_access, create_refresh, verify_user, verify_token
 
 app = FastAPI()
 
@@ -19,7 +20,6 @@ def root():
         "endpoints": {
             "documentation": "/docs",
             "skills": "/skills",
-            "health": "/health"
         }
     }
 
@@ -124,3 +124,128 @@ def del_skill(id: int, db: Session = Depends(get_db)):
         return skill
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Навичка з ID {id} не знайдена")
+
+
+@app.get('/users', response_model=UserResponse, tags=['Users'])
+def get_users(db: Session = Depends(get_db)):
+    """Отримати всіх користовачів"""
+    users = db.query(User).all()
+
+    if users:
+        return users
+    else:
+        return "Не знайдено жодного користовача"
+    
+
+@app.get('/users/{id}', response_model=UserResponse, tags=['Users'])
+def get_user_by_id(id: int, db: Session = Depends(get_db)):
+    """Отримати юзера за ID"""
+    user = db.query(User).filter_by(id=id)
+
+    if user:
+        return user
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Юзера з ID {id} не знайдена")
+
+
+@app.post('/register', response_model=UserResponse, tags=['Users'])
+def register(data: UserCreate, db: Session = Depends(get_db)):
+    user = data.model_dump()
+
+    new_user = User(**user)
+
+    new_user.set_password(user['password'])
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    user.pop('password')
+
+    access = create_access(user)
+    refresh = create_refresh(user)
+
+    
+    if access and refresh:
+        res = JSONResponse({'message': 'successfuly created', 'user': user}, status_code=status.HTTP_201_CREATED)
+
+        res.set_cookie(
+            key="access_token",
+            value=access,
+            max_age=900,
+            httponly=True,
+            samesite="lax"
+        )
+
+        res.set_cookie(
+            key="refresh_token",
+            value=refresh,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=60 * 60 * 24 * 7
+        )
+
+        return res    
+
+
+@app.post('/login', response_model=UserResponse, tags=['Users'])
+def login(data: UserLogin, db: Session = Depends(get_db)):
+    user = data.model_dump()
+
+    db_user = db.query(User).filter_by(username=user.get('username')).first()
+
+    if db_user.check_password(user.get('password')):
+        access = create_access(user)
+        refresh = create_refresh(user)
+
+    
+        if access and refresh:
+            res = JSONResponse({'message': 'successfuly logined'}, status_code=status.HTTP_201_CREATED)
+
+            res.set_cookie(
+                key="access_token",
+                value=access,
+                max_age=900,
+                httponly=True,
+                samesite="lax"
+            )
+
+            res.set_cookie(
+                key="refresh_token",
+                value=refresh,
+                httponly=True,
+                secure=False,
+                samesite="lax",
+                max_age=60 * 60 * 24 * 7
+            )
+
+            return res    
+    else:
+        raise HTTPException(detail='Unauthorized', status_code=status.HTTP_401_UNAUTHORIZED)
+    
+    
+@app.post('/refresh', tags=['Tokens'])
+def refresh(req: Request):
+    refresh = req.cookies.get('refresh_token')
+
+    if refresh:
+        payload = verify_token(refresh)
+
+        token = create_access(payload)
+
+        res = JSONResponse({'message': 'token was gived'}, status_code=status.HTTP_201_CREATED)
+
+
+        res.set_cookie(
+            key="access_token",
+            value=token,
+            max_age=900,
+            httponly=True,
+            samesite="lax"
+        )
+        
+        return res
+    else:
+        raise HTTPException(detail='Bad request', status_code=status.HTTP_400_BAD_REQUEST)
+

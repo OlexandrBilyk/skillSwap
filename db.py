@@ -5,6 +5,7 @@ from models import SkillCategory, SkillLevel
 from dotenv import load_dotenv
 from datetime import datetime
 from typing import List, Optional
+import bcrypt
 
 load_dotenv()
 
@@ -18,6 +19,7 @@ class UserSkillLink(SQLModel, table=True):
 class User(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True,  default=None)
     username: str = Field(max_length=50, unique=True)
+    password: str = Field()
     email: EmailStr = Field(max_length=100)
     full_name: str = Field(max_length=100)
     created_at: datetime = Field(default_factory=datetime.now)
@@ -25,6 +27,12 @@ class User(SQLModel, table=True):
     is_active: bool = Field(default=True)
 
     skills: List['Skill'] = Relationship(back_populates='users', link_model=UserSkillLink)
+
+    def set_password(self, password: str):
+        self.password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    def check_password(self, password: str):
+        return bcrypt.checkpw(password.encode('utf-8'), self.password.encode('utf-8'))
 
 
 class Skill(SQLModel, table=True):
