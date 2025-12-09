@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Depends, status, Query, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.requests import Request
-from models import SkillCreate, SkillResponse, SkillLevel, SkillCategory, SkillUpdate, UserCreate, UserResponse, UserLogin
+from models import SkillCreate, SkillResponse, SkillLevel, SkillCategory, SkillUpdate, ExchangeCreate, ExchangeResponse, UserCreate, UserResponse, UserLogin
 from sqlalchemy.orm import Session
-from db import get_db, Skill, User
+from db import get_db, Skill, User, Exchange
 from typing import List
 from tokens import create_access, create_refresh, verify_user, verify_token
 
@@ -161,6 +161,7 @@ def register(data: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     user.pop('password')
+    user['id'] = new_user.id
 
     access = create_access(user)
     refresh = create_refresh(user)
@@ -196,6 +197,8 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(User).filter_by(username=user.get('username')).first()
 
     if db_user.check_password(user.get('password')):
+        user['id'] = db_user.id
+
         access = create_access(user)
         refresh = create_refresh(user)
 
@@ -249,3 +252,39 @@ def refresh(req: Request):
     else:
         raise HTTPException(detail='Bad request', status_code=status.HTTP_400_BAD_REQUEST)
 
+
+@app.get("/exchanges/received", response_model=List[ExchangeResponse], tags=["Exchanges"])
+def get_received_exchanges(db: Session = Depends(get_db), user: dict = Depends(verify_user)):
+    user_id = user.get("id")
+
+    exchanges = db.query(Exchange).filter_by(receiver_id=user_id).all()
+    return exchanges
+
+
+@app.get("/exchanges/sent", response_model=List[ExchangeResponse], tags=["Exchanges"])
+def get_sent_exchanges(db: Session = Depends(get_db), user: dict = Depends(verify_user)):
+    user_id = user.get("id")
+
+    exchanges = db.query(Exchange).filter_by(sender_id=user_id).all()
+    return exchanges
+
+
+@app.post("/exchanges", response_model=ExchangeResponse, status_code=status.HTTP_201_CREATED, tags=["Exchanges"])
+def create_exchange(data: ExchangeCreate, db: Session = Depends(get_db), user: dict = Depends(verify_user)):
+    user_id = user.get("id")
+
+    if user_id == data.receiver_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot exchange skills with yourself")
+
+    new_exchange = Exchange(
+        sender_id=user_id,
+        receiver_id=data.receiver_id,
+        skill_id=data.skill_id,
+        message=data.message
+    )
+
+    db.add(new_exchange)
+    db.commit()
+    db.refresh(new_exchange)
+
+    return new_exchange

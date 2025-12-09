@@ -80,3 +80,17 @@ class UserResponse(UserBase):
 class UserLogin(BaseModel):
     username: str
     password: str
+
+class ExchangeCreate(BaseModel):
+    receiver_id: int
+    skill_id: int
+    message: str
+
+class ExchangeResponse(ExchangeCreate):
+    id: int
+    sender_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
